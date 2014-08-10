@@ -251,7 +251,7 @@ function loadconicproblem!(m::ECOSMathProgModel, c, A, b, cones)
     end
     @assert G_row == num_pos_orth + 1
     # Now handle the SOCs
-    # The MPB unput form is basically just says a vector of
+    # The MPB input form is basically just says a vector of
     # variables (y,x) lives in the SOC  || x || <= y
     # ECOS wants somethings in the form h - Gx in Q so we
     # will prove 0 - Ix \in Q
@@ -284,4 +284,53 @@ function loadconicproblem!(m::ECOSMathProgModel, c, A, b, cones)
     m.h             = ecos_h
     m.b             = ecos_b
     m.fwd_map       = fwd_map
+end
+
+function loadineqconicproblem!(m::ECOSMathProgModel, c, A, b, G, h, cones)
+
+    # IneqMathProgBase form             ECOS form
+    # min c'x                       min c'x
+    # st  A x = b                   st  A x = b
+    #     h - G x in K                  h - Gx in K
+
+    num_pos_orth = 0; SOC_conedims = Int64[];
+    nonneg_indices = Range[]
+    soc_indices = Range[]
+    num_SOC_cones = 0
+    for (cone,idx) in cones
+        if cone == :free
+            continue
+        elseif cone == :NonNeg
+            num_pos_orth += length(idx)
+            push!(nonneg_indices, idx)
+        elseif cone == :SOC
+            push!(SOC_conedims, length(idx))
+            push!(soc_indices, idx)
+            num_SOC_cones += 1
+        else
+            error("ECOS does not support cone $cone")
+            # TODO: allow :NonPos and :Zero cone
+        end
+    end
+    # rearrange rows so nonneg cone comes before SOC
+    nonneg_indices,soc_indices = map(l->vcat(l...), (nonneg_indices,soc_indices))
+    ecos_G = vcat(G[nonneg_indices,:], G[soc_indices,:])
+    ecos_h = vcat(h[nonneg_indices], h[soc_indices])
+    num_G_row, num_vars = size(G)
+    neq, n = size(A)
+
+    # Store in the ECOS structure
+    m.nvar          = num_vars
+    m.nineq         = num_G_row
+    m.neq           = neq
+    m.npos          = num_pos_orth
+    m.ncones        = num_SOC_cones
+    m.conedims      = SOC_conedims
+    m.G             = ecos_G
+    m.A             = A
+    m.c             = reshape(c, (num_vars,))
+    m.orig_sense    = :Min
+    m.h             = ecos_h
+    m.b             = reshape(b, (neq,))
+    m.fwd_map       = [1:num_vars]
 end
