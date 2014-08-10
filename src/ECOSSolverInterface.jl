@@ -309,7 +309,7 @@ function loadineqconicproblem!(m::ECOSMathProgModel, c, A, b, G, h, cones)
             num_SOC_cones += 1
         else
             error("ECOS does not support cone $cone")
-            # TODO: allow :Zero cone
+            # TODO: allow :NonPos and :Zero cone
         end
     end
     # rearrange rows so nonneg cone comes before SOC
